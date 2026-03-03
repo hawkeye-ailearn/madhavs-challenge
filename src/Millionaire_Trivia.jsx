@@ -36,11 +36,18 @@ const SUBJECT_EMOJIS = {
 
 // Hari fills these in — shown on correct-answer celebration
 const DAD_MESSAGES = [
-  "Amazing Madhav! 🌟",
-  "That's my boy! 🧠",
-  "Amma would be so proud!",
-  "You're on fire! 🔥",
-  "Adipoli! Keep going!",
+  "Wow! Madhav! That was amazing!! 🌟",
+  "Kidu Madhav!! 🔥",
+  "Super Madhav!! ⭐",
+  "You are the bestest!! 🏆",
+  "Ente Ammo!! IThaaraa!! 🤩",
+  "Madhav oru sambhavam aanallo! 👑",
+];
+
+const DAD_LOSS_MESSAGES = [
+  "That's alright!! You did your best, I am proud of you! 💙",
+  "You win some...you lose some...so that next time you can win! 💪",
+  "You still are the best! 🌟",
 ];
 
 // ---- Helpers ----
@@ -465,7 +472,7 @@ function AskParentModal({ onResume }) {
 AskParentModal.propTypes = { onResume: PropTypes.func.isRequired };
 
 // ---- Game Over Screen ----
-function GameOver({ won, coins, correct, bestStreakThisGame, onRestart }) {
+function GameOver({ won, coins, correct, bestStreakThisGame, lossMessage, onRestart }) {
   const progress = getProgress();
   return (
     <div style={{
@@ -475,16 +482,29 @@ function GameOver({ won, coins, correct, bestStreakThisGame, onRestart }) {
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700&display=swap');
-        @keyframes slideIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes slideIn    { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes msgSlideUp { from{opacity:0;transform:translateY(32px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
 
       <div style={{ fontSize: "5rem", marginBottom: "1rem" }}>{won ? "🏆" : "😢"}</div>
       <h1 style={{ fontSize: "2.5rem", color: won ? "#FFD43B" : "#FF6B6B", marginBottom: "0.5rem" }}>
         {won ? "YOU DID IT, MADHAV!" : "Oops! Better luck next time!"}
       </h1>
-      <p style={{ color: "#aaa", fontFamily: "'Nunito', sans-serif", fontSize: "1rem", marginBottom: "1.5rem", fontStyle: "italic" }}>
+      <p style={{ color: "#aaa", fontFamily: "'Nunito', sans-serif", fontSize: "1rem", marginBottom: "0.75rem", fontStyle: "italic" }}>
         {getMotivationalMessage(correct)}
       </p>
+
+      {/* Dad loss message */}
+      {!won && lossMessage && (
+        <p style={{
+          color: "#74C0FC", fontFamily: "'Nunito', sans-serif", fontSize: "1rem",
+          marginBottom: "1.5rem", fontWeight: 700,
+          animation: "msgSlideUp 0.5s cubic-bezier(0.22,1,0.36,1) both",
+          animationDelay: "0.2s", opacity: 0,
+        }}>
+          {lossMessage}
+        </p>
+      )}
 
       {/* Stats grid */}
       <div style={{
@@ -530,8 +550,10 @@ GameOver.propTypes = {
   coins: PropTypes.number.isRequired,
   correct: PropTypes.number.isRequired,
   bestStreakThisGame: PropTypes.number.isRequired,
+  lossMessage: PropTypes.string,
   onRestart: PropTypes.func.isRequired,
 };
+GameOver.defaultProps = { lossMessage: null };
 
 // ---- Main Game ----
 
@@ -553,6 +575,7 @@ export default function MillionaireTrivia() {
   const [bestStreakThisGame, setBestStreakThisGame] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [dadMessage, setDadMessage] = useState(null);
+  const [lossMessage, setLossMessage] = useState(null);
   const [isPersonalBest, setIsPersonalBest] = useState(false);
 
   const startGame = () => {
@@ -570,6 +593,7 @@ export default function MillionaireTrivia() {
     setBestStreakThisGame(0);
     setCorrectCount(0);
     setDadMessage(null);
+    setLossMessage(null);
     setIsPersonalBest(false);
     setScreen("game");
 
@@ -637,6 +661,7 @@ export default function MillionaireTrivia() {
     setAnswerState("wrong");
     setMascotState("wrong");
     setStreak(0);
+    setLossMessage(DAD_LOSS_MESSAGES[Math.floor(Math.random() * DAD_LOSS_MESSAGES.length)]);
     setTimeout(() => {
       saveGameResult({ coinsEarned: safeCoins, correct: correctCount, total: questions.length, bestStreakThisGame });
       setCoins(safeCoins);
@@ -676,6 +701,7 @@ export default function MillionaireTrivia() {
         coins={coins}
         correct={correctCount}
         bestStreakThisGame={bestStreakThisGame}
+        lossMessage={lossMessage}
         onRestart={() => setScreen("intro")}
       />
     );
