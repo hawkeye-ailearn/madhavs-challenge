@@ -2,14 +2,14 @@ import { useState, useEffect, useRef } from "react";
 
 const COIN_LADDER = [
   { level: 1,  coins: 100,       safe: false },
-  { level: 2,  coins: 200,       safe: false },
-  { level: 3,  coins: 500,       safe: true  },
-  { level: 4,  coins: 1000,      safe: false },
-  { level: 5,  coins: 2000,      safe: false },
-  { level: 6,  coins: 5000,      safe: true  },
-  { level: 7,  coins: 10000,     safe: false },
-  { level: 8,  coins: 25000,     safe: false },
-  { level: 9,  coins: 50000,     safe: true  },
+  { level: 2,  coins: 500,       safe: false },
+  { level: 3,  coins: 1000,      safe: true  },
+  { level: 4,  coins: 5000,      safe: false },
+  { level: 5,  coins: 10000,     safe: false },
+  { level: 6,  coins: 25000,     safe: true  },
+  { level: 7,  coins: 50000,     safe: false },
+  { level: 8,  coins: 100000,    safe: false },
+  { level: 9,  coins: 250000,    safe: true  },
   { level: 10, coins: 1000000,   safe: false },
 ];
 
