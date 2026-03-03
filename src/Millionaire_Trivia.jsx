@@ -14,21 +14,49 @@ const COIN_LADDER = [
 ];
 
 const HARDCODED_QUESTIONS = [
+  // Math
   { question: "How many sides does a triangle have?", options: ["2", "3", "4", "5"], answer: "3", subject: "Math" },
   { question: "What is 5 + 7?", options: ["10", "11", "12", "13"], answer: "12", subject: "Math" },
+  { question: "What is 10 - 4?", options: ["4", "5", "6", "7"], answer: "6", subject: "Math" },
+  { question: "How many days are in a week?", options: ["5", "6", "7", "8"], answer: "7", subject: "Math" },
+  { question: "What is 3 × 4?", options: ["7", "10", "12", "14"], answer: "12", subject: "Math" },
+  { question: "How many sides does a square have?", options: ["3", "4", "5", "6"], answer: "4", subject: "Math" },
+  { question: "What is half of 20?", options: ["5", "8", "10", "15"], answer: "10", subject: "Math" },
+  { question: "What comes after 19?", options: ["18", "20", "21", "29"], answer: "20", subject: "Math" },
+  { question: "How many months are in a year?", options: ["10", "11", "12", "13"], answer: "12", subject: "Math" },
+  { question: "What is 8 + 9?", options: ["15", "16", "17", "18"], answer: "17", subject: "Math" },
+  // Science
   { question: "Which planet do we live on?", options: ["Mars", "Venus", "Earth", "Jupiter"], answer: "Earth", subject: "Science" },
   { question: "What do plants need to make food?", options: ["Moon", "Sunlight", "Sand", "Snow"], answer: "Sunlight", subject: "Science" },
+  { question: "What season comes after Summer?", options: ["Spring", "Winter", "Fall", "Monsoon"], answer: "Fall", subject: "Science" },
+  { question: "Where do fish live?", options: ["In trees", "Underground", "In water", "On mountains"], answer: "In water", subject: "Science" },
+  { question: "What does a caterpillar turn into?", options: ["A bee", "A butterfly", "A spider", "A worm"], answer: "A butterfly", subject: "Science" },
+  { question: "What do we call baby dogs?", options: ["Kittens", "Cubs", "Puppies", "Chicks"], answer: "Puppies", subject: "Science" },
+  { question: "Which animal has a trunk?", options: ["Lion", "Elephant", "Giraffe", "Zebra"], answer: "Elephant", subject: "Science" },
+  { question: "What is the largest planet in our solar system?", options: ["Earth", "Saturn", "Jupiter", "Mars"], answer: "Jupiter", subject: "Science" },
+  { question: "What do caterpillars eat?", options: ["Meat", "Leaves", "Fish", "Rocks"], answer: "Leaves", subject: "Science" },
+  { question: "What covers most of the Earth?", options: ["Sand", "Ice", "Water", "Grass"], answer: "Water", subject: "Science" },
+  // History
   { question: "Who was the first President of the United States?", options: ["Abraham Lincoln", "George Washington", "Thomas Jefferson", "John Adams"], answer: "George Washington", subject: "History" },
   { question: "What holiday do we celebrate on July 4th?", options: ["Thanksgiving", "Halloween", "Independence Day", "Christmas"], answer: "Independence Day", subject: "History" },
+  { question: "What famous structure is in Paris, France?", options: ["Big Ben", "Eiffel Tower", "Statue of Liberty", "Colosseum"], answer: "Eiffel Tower", subject: "History" },
+  { question: "On which holiday do we give thanks and eat turkey?", options: ["Easter", "Christmas", "Thanksgiving", "Halloween"], answer: "Thanksgiving", subject: "History" },
+  { question: "What country is the Taj Mahal in?", options: ["China", "Egypt", "India", "Brazil"], answer: "India", subject: "History" },
+  // Civics
   { question: "What do police officers do?", options: ["Cook food", "Build houses", "Keep people safe", "Fly planes"], answer: "Keep people safe", subject: "Civics" },
-  { question: "Which of these is a vowel?", options: ["B", "C", "E", "T"], answer: "E", subject: "Reading" },
-  { question: "What season comes after Summer?", options: ["Spring", "Winter", "Fall", "Monsoon"], answer: "Fall", subject: "Science" },
-  { question: "What is 10 - 4?", options: ["4", "5", "6", "7"], answer: "6", subject: "Math" },
-  { question: "Where do fish live?", options: ["In trees", "Underground", "In water", "On mountains"], answer: "In water", subject: "Science" },
-  { question: "How many days are in a week?", options: ["5", "6", "7", "8"], answer: "7", subject: "Math" },
-  { question: "What does a caterpillar turn into?", options: ["A bee", "A butterfly", "A spider", "A worm"], answer: "A butterfly", subject: "Science" },
-  { question: "What letter comes after D in the alphabet?", options: ["C", "E", "F", "B"], answer: "E", subject: "Reading" },
   { question: "Who helps us when we are sick?", options: ["A firefighter", "A teacher", "A doctor", "A chef"], answer: "A doctor", subject: "Civics" },
+  { question: "What do firefighters do?", options: ["Teach school", "Put out fires", "Fix cars", "Bake bread"], answer: "Put out fires", subject: "Civics" },
+  { question: "What do you call the leader of the United States?", options: ["King", "Prime Minister", "President", "Mayor"], answer: "President", subject: "Civics" },
+  { question: "What do we put in a recycle bin?", options: ["Food scraps", "Paper and cans", "Dirty clothes", "Broken glass"], answer: "Paper and cans", subject: "Civics" },
+  // Reading
+  { question: "Which of these is a vowel?", options: ["B", "C", "E", "T"], answer: "E", subject: "Reading" },
+  { question: "What letter comes after D in the alphabet?", options: ["C", "E", "F", "B"], answer: "E", subject: "Reading" },
+  { question: "How many letters are in the word CAT?", options: ["2", "3", "4", "5"], answer: "3", subject: "Reading" },
+  { question: "Which word rhymes with HAT?", options: ["Dog", "Car", "Bat", "Sun"], answer: "Bat", subject: "Reading" },
+  { question: "What do you call a group of words that makes a complete thought?", options: ["A letter", "A sentence", "A paragraph", "A word"], answer: "A sentence", subject: "Reading" },
+  { question: "What is the first letter of the alphabet?", options: ["B", "Z", "A", "E"], answer: "A", subject: "Reading" },
+  { question: "Which word is the opposite of HOT?", options: ["Warm", "Cold", "Bright", "Fast"], answer: "Cold", subject: "Reading" },
+  { question: "What punctuation ends a question?", options: [".", "!", "?", ","], answer: "?", subject: "Reading" },
 ];
 
 const SUBJECT_COLORS = {
@@ -267,14 +295,14 @@ export default function MillionaireTrivia() {
     setWon(false);
     setScreen("game");
 
-    // Background-fetch 3 AI questions and swap into positions 3, 4, 5
-    Promise.all(
-      ["Math", "Science", "History"].map(subject => fetchAIQuestion(subject))
-    ).then(results => {
+    // Background-fetch 7 AI questions spread across positions 1-9 (skip Q0 so game starts instantly)
+    const aiSubjects = ["Math", "Science", "History", "Civics", "Reading", "Math", "Science"];
+    const aiSlots    = [1, 2, 3, 4, 5, 7, 8];
+    Promise.all(aiSubjects.map(subject => fetchAIQuestion(subject))).then(results => {
       setQuestions(prev => {
         const updated = [...prev];
         for (let i = 0; i < results.length; i++) {
-          if (results[i]) updated[3 + i] = results[i];
+          if (results[i]) updated[aiSlots[i]] = results[i];
         }
         return updated;
       });
