@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { buildGameQuestions } from "./questionBank.js";
+import { getProgress, saveGameResult } from "./progressTracker.js";
+
+// ---- Constants ----
 
 const COIN_LADDER = [
   { level: 1,  coins: 100,       safe: false },
@@ -14,7 +17,6 @@ const COIN_LADDER = [
   { level: 9,  coins: 250000,    safe: true  },
   { level: 10, coins: 1000000,   safe: false },
 ];
-
 
 const SUBJECT_COLORS = {
   Math: "#FF6B6B",
@@ -32,8 +34,48 @@ const SUBJECT_EMOJIS = {
   Reading: "📚",
 };
 
+// Hari fills these in — shown on correct-answer celebration
+const DAD_MESSAGES = [
+  "Wow! Madhav! That was amazing!! 🌟",
+  "Kidu Madhav!! 🔥",
+  "Super Madhav!! ⭐",
+  "You are the bestest!! 🏆",
+  "Ente Ammo!! IThaaraa!! 🤩",
+  "Madhav oru sambhavam aanallo! 👑",
+];
+
+const DAD_LOSS_MESSAGES = [
+  "That's alright!! You did your best, I am proud of you! 💙",
+  "You win some...you lose some...so that next time you can win! 💪",
+  "You still are the best! 🌟",
+];
+
+// ---- Helpers ----
+
 function shuffle(arr) {
   return [...arr].sort(() => Math.random() - 0.5);
+}
+
+// Adaptive AI slot config: [aiCount, slotIndices (0-based), difficulty label]
+function getAIConfig(gamesPlayed) {
+  if (gamesPlayed >= 31) return { count: 8, slots: [2, 3, 4, 5, 6, 7, 8, 9] };
+  if (gamesPlayed >= 16) return { count: 6, slots: [4, 5, 6, 7, 8, 9] };
+  if (gamesPlayed >= 6)  return { count: 4, slots: [6, 7, 8, 9] };
+  return                        { count: 2, slots: [6, 7] };
+}
+
+async function fetchAIQuestion(subject) {
+  try {
+    const res = await fetch("/api/ask-claude", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subject, difficulty: "hard" }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 // ---- Sound Engine (Web Audio API, no files needed) ----
@@ -71,7 +113,7 @@ function playSound(type) {
 // Stable coin IDs — avoids using array index as React key
 const COIN_ITEMS = Array.from({ length: 20 }, (_, i) => ({ id: i }));
 
-// Moved outside component: pure style helper, reduces cognitive complexity
+// Pure style helpers — outside component to reduce cognitive complexity
 function getOptionStyle(option, { eliminatedOptions, selectedAnswer, answerState, answer }) {
   const isEliminated = eliminatedOptions.includes(option);
   const isSelected = selectedAnswer === option;
@@ -99,7 +141,6 @@ function getOptionStyle(option, { eliminatedOptions, selectedAnswer, answerState
   };
 }
 
-// Extracted ladder style helpers — avoids nested ternaries
 function getLadderBg(index, currentQ) {
   if (index === currentQ) return "#FFD43B";
   if (index < currentQ) return "rgba(81,207,102,0.3)";
@@ -110,6 +151,13 @@ function getLadderColor(index, currentQ) {
   if (index === currentQ) return "#1a1a2e";
   if (index < currentQ) return "#51CF66";
   return "#888";
+}
+
+function getMotivationalMessage(correct) {
+  if (correct === 10) return "PERFECT GAME! You're a genius! 🧠";
+  if (correct >= 7)   return "Amazing work Madhav! 🌟";
+  if (correct >= 4)   return "Great effort! Keep practicing! 💪";
+  return "Good try! You'll do better next time! 🎯";
 }
 
 // ---- Components ----
@@ -151,6 +199,193 @@ function CoinBurst({ show }) {
 }
 CoinBurst.propTypes = { show: PropTypes.bool.isRequired };
 
+// ---- Geek Mascot ----
+// Drawn entirely with HTML/CSS divs — no images, no SVG files
+function GeekMascot({ state }) {
+  const animations = {
+    idle:     "mascotFloat 3s ease-in-out infinite",
+    correct:  "mascotJump 0.5s ease-out infinite alternate",
+    wrong:    "mascotShake 0.15s ease-in-out infinite",
+    thinking: "mascotPulse 1.5s ease-in-out infinite",
+  };
+  const eyeExpressions = {
+    idle:     { transform: "none" },
+    correct:  { transform: "scaleY(0.3)", borderRadius: "0 0 50% 50%" }, // happy squint
+    wrong:    { transform: "scaleY(1.2) rotate(5deg)" },                  // worried wide
+    thinking: { transform: "scaleY(0.8)" },
+  };
+  const mouthShapes = {
+    idle:     { width: 18, height: 9, borderRadius: "0 0 9px 9px", background: "#c0392b", border: "2px solid #922b21" },
+    correct:  { width: 26, height: 14, borderRadius: "0 0 14px 14px", background: "#c0392b", border: "2px solid #922b21" },
+    wrong:    { width: 18, height: 9, borderRadius: "9px 9px 0 0", background: "#c0392b", border: "2px solid #922b21" },
+    thinking: { width: 14, height: 8, borderRadius: 4, background: "#c0392b", border: "2px solid #922b21" },
+  };
+
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center",
+      animation: animations[state] || animations.idle,
+      transition: "all 0.3s ease",
+      userSelect: "none",
+    }}>
+      {/* Stars on correct */}
+      {state === "correct" && (
+        <div style={{ position: "relative", width: 80, height: 20, marginBottom: 4 }}>
+          {["⭐","⭐","⭐"].map((s, i) => (
+            <span key={i} style={{
+              position: "absolute", fontSize: "0.9rem",
+              left: `${i * 30}%`, top: 0,
+              animation: `starPop 0.4s ease-out ${i * 0.1}s both`,
+            }}>{s}</span>
+          ))}
+        </div>
+      )}
+
+      {/* Head */}
+      <div style={{
+        width: 72, height: 72, borderRadius: "50%",
+        background: "linear-gradient(135deg, #FDDCB5, #F5A623)",
+        border: "3px solid #E8901A",
+        position: "relative",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+      }}>
+        {/* Rosy cheeks */}
+        <div style={{ position: "absolute", left: 6, top: 38, width: 14, height: 8, borderRadius: "50%", background: "rgba(255,100,100,0.35)" }} />
+        <div style={{ position: "absolute", right: 6, top: 38, width: 14, height: 8, borderRadius: "50%", background: "rgba(255,100,100,0.35)" }} />
+
+        {/* Glasses frame */}
+        <div style={{ position: "absolute", top: 22, display: "flex", alignItems: "center", gap: 4 }}>
+          {/* Left lens */}
+          <div style={{
+            width: 22, height: 16, borderRadius: 4,
+            border: "3px solid #333", background: "rgba(173,216,230,0.4)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            {/* Left eye */}
+            <div style={{
+              width: 7, height: 7, borderRadius: "50%",
+              background: "#333", ...eyeExpressions[state],
+              transition: "transform 0.3s",
+            }} />
+          </div>
+          {/* Bridge */}
+          <div style={{ width: 6, height: 2, background: "#333", borderRadius: 1 }} />
+          {/* Right lens */}
+          <div style={{
+            width: 22, height: 16, borderRadius: 4,
+            border: "3px solid #333", background: "rgba(173,216,230,0.4)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            {/* Right eye */}
+            <div style={{
+              width: 7, height: 7, borderRadius: "50%",
+              background: "#333", ...eyeExpressions[state],
+              transition: "transform 0.3s",
+            }} />
+          </div>
+        </div>
+
+        {/* Mouth */}
+        <div style={{
+          position: "absolute", bottom: 14, left: "50%",
+          transform: "translateX(-50%)",
+          transition: "all 0.3s",
+          ...mouthShapes[state],
+        }} />
+
+        {/* Thinking hand (chin scratch) */}
+        {state === "thinking" && (
+          <div style={{
+            position: "absolute", bottom: -10, right: -8,
+            fontSize: "1.1rem",
+            animation: "thinkingTap 1s ease-in-out infinite",
+          }}>✋</div>
+        )}
+      </div>
+
+      {/* Bowtie */}
+      <div style={{ display: "flex", alignItems: "center", marginTop: 4 }}>
+        <div style={{ width: 0, height: 0, borderTop: "7px solid transparent", borderBottom: "7px solid transparent", borderRight: "10px solid #E74C3C" }} />
+        <div style={{ width: 8, height: 8, background: "#C0392B", borderRadius: "50%" }} />
+        <div style={{ width: 0, height: 0, borderTop: "7px solid transparent", borderBottom: "7px solid transparent", borderLeft: "10px solid #E74C3C" }} />
+      </div>
+
+      {/* Emoji label */}
+      <div style={{ fontSize: "1.4rem", marginTop: 2 }}>🤓</div>
+    </div>
+  );
+}
+GeekMascot.propTypes = { state: PropTypes.string.isRequired };
+
+// ---- Streak Counter ----
+function StreakCounter({ streak }) {
+  if (streak < 2) return null;
+  return (
+    <div style={{
+      marginTop: "0.75rem",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      animation: "streakBounce 0.4s cubic-bezier(0.36,0.07,0.19,0.97)",
+    }}>
+      <span style={{
+        background: "linear-gradient(135deg, rgba(255,107,107,0.2), rgba(255,169,77,0.2))",
+        border: "2px solid #FF6B6B", borderRadius: 50,
+        padding: "0.4rem 1.2rem",
+        fontFamily: "'Fredoka One', cursive", fontSize: "1rem",
+        color: "#FF6B6B", letterSpacing: 1,
+      }}>
+        🔥 {streak} in a row!
+      </span>
+    </div>
+  );
+}
+StreakCounter.propTypes = { streak: PropTypes.number.isRequired };
+
+// ---- Dad Message overlay ----
+function DadMessage({ message }) {
+  if (!message) return null;
+  return (
+    <div style={{
+      position: "fixed", bottom: "2rem", left: "50%", transform: "translateX(-50%)",
+      zIndex: 200, pointerEvents: "none",
+      animation: "dadMsgSlideUp 0.4s cubic-bezier(0.22,1,0.36,1) both",
+    }}>
+      <div style={{
+        background: "linear-gradient(135deg, #1a1a2e, #16213e)",
+        border: "2px solid #FFD43B", borderRadius: 50,
+        padding: "0.6rem 1.8rem",
+        fontFamily: "'Fredoka One', cursive", fontSize: "1.1rem",
+        color: "#FFD43B", whiteSpace: "nowrap",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+      }}>
+        {message}
+      </div>
+    </div>
+  );
+}
+DadMessage.propTypes = { message: PropTypes.string };
+DadMessage.defaultProps = { message: null };
+
+// ---- Personal Best Banner ----
+function PersonalBestBanner({ show }) {
+  if (!show) return null;
+  return (
+    <div style={{
+      animation: "shimmer 1.5s linear infinite, slideIn 0.4s ease-out",
+      background: "linear-gradient(90deg, rgba(255,212,75,0.1) 0%, rgba(255,212,75,0.3) 50%, rgba(255,212,75,0.1) 100%)",
+      backgroundSize: "200% 100%",
+      border: "2px solid #FFD43B", borderRadius: 50,
+      padding: "0.4rem 1.5rem", marginBottom: "0.6rem",
+      fontFamily: "'Fredoka One', cursive", fontSize: "0.95rem",
+      color: "#FFD43B", textAlign: "center",
+    }}>
+      🏆 New Personal Best!
+    </div>
+  );
+}
+PersonalBestBanner.propTypes = { show: PropTypes.bool.isRequired };
+
+// ---- Ask Parent Modal ----
 function AskParentModal({ onResume }) {
   const [timer, setTimer] = useState(60);
   const [phase, setPhase] = useState("calling"); // calling -> waiting -> done
@@ -234,25 +469,67 @@ function AskParentModal({ onResume }) {
     </div>
   );
 }
-AskParentModal.propTypes = {
-  onResume: PropTypes.func.isRequired,
-};
+AskParentModal.propTypes = { onResume: PropTypes.func.isRequired };
 
-function GameOver({ won, coins, onRestart }) {
+// ---- Game Over Screen ----
+function GameOver({ won, coins, correct, bestStreakThisGame, lossMessage, onRestart }) {
+  const progress = getProgress();
   return (
     <div style={{
       minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
       background: "linear-gradient(135deg, #0f0c29, #302b63, #24243e)",
       fontFamily: "'Fredoka One', cursive", flexDirection: "column", textAlign: "center", padding: "2rem"
     }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700&display=swap');
+        @keyframes slideIn    { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes msgSlideUp { from{opacity:0;transform:translateY(32px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
+
       <div style={{ fontSize: "5rem", marginBottom: "1rem" }}>{won ? "🏆" : "😢"}</div>
       <h1 style={{ fontSize: "2.5rem", color: won ? "#FFD43B" : "#FF6B6B", marginBottom: "0.5rem" }}>
         {won ? "YOU DID IT, MADHAV!" : "Oops! Better luck next time!"}
       </h1>
-      <p style={{ color: "#ccc", fontSize: "1.2rem", marginBottom: "1.5rem" }}>
-        {won ? "You won " : "You earned "}
-        <span style={{ color: "#FFD43B", fontSize: "1.6rem" }}>🪙 {coins} coins!</span>
+      <p style={{ color: "#aaa", fontFamily: "'Nunito', sans-serif", fontSize: "1rem", marginBottom: "0.75rem", fontStyle: "italic" }}>
+        {getMotivationalMessage(correct)}
       </p>
+
+      {/* Dad loss message */}
+      {!won && lossMessage && (
+        <p style={{
+          color: "#74C0FC", fontFamily: "'Nunito', sans-serif", fontSize: "1rem",
+          marginBottom: "1.5rem", fontWeight: 700,
+          animation: "msgSlideUp 0.5s cubic-bezier(0.22,1,0.36,1) both",
+          animationDelay: "0.2s", opacity: 0,
+        }}>
+          {lossMessage}
+        </p>
+      )}
+
+      {/* Stats grid */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem",
+        width: "100%", maxWidth: 380, marginBottom: "2rem",
+        animation: "slideIn 0.5s ease-out",
+      }}>
+        {[
+          { icon: "🪙", label: "Coins earned", value: coins.toLocaleString() },
+          { icon: "🏆", label: "High score",   value: progress.highScore.toLocaleString() },
+          { icon: "🔥", label: "Best streak",  value: `${bestStreakThisGame} in a row` },
+          { icon: "📊", label: "Accuracy",     value: `${correct}/10 correct` },
+          { icon: "🎮", label: "Total games",  value: progress.gamesPlayed },
+        ].map(({ icon, label, value }) => (
+          <div key={label} style={{
+            background: "rgba(255,255,255,0.06)", borderRadius: 16, padding: "0.85rem 1rem",
+            border: "1px solid rgba(255,255,255,0.1)",
+          }}>
+            <div style={{ fontSize: "1.5rem" }}>{icon}</div>
+            <div style={{ color: "#FFD43B", fontSize: "1.1rem", margin: "0.2rem 0 0.1rem" }}>{value}</div>
+            <div style={{ color: "#777", fontFamily: "'Nunito', sans-serif", fontSize: "0.75rem" }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
       <button onClick={onRestart} style={{
         background: "linear-gradient(135deg, #FFD43B, #FFA94D)",
         border: "none", borderRadius: 50, padding: "1rem 2.5rem",
@@ -271,8 +548,12 @@ function GameOver({ won, coins, onRestart }) {
 GameOver.propTypes = {
   won: PropTypes.bool.isRequired,
   coins: PropTypes.number.isRequired,
+  correct: PropTypes.number.isRequired,
+  bestStreakThisGame: PropTypes.number.isRequired,
+  lossMessage: PropTypes.string,
   onRestart: PropTypes.func.isRequired,
 };
+GameOver.defaultProps = { lossMessage: null };
 
 // ---- Main Game ----
 
@@ -288,9 +569,18 @@ export default function MillionaireTrivia() {
   const [coins, setCoins] = useState(0);
   const [showBurst, setShowBurst] = useState(false);
   const [won, setWon] = useState(false);
+  // Mascot & encouragement state
+  const [mascotState, setMascotState] = useState("idle");
+  const [streak, setStreak] = useState(0);
+  const [bestStreakThisGame, setBestStreakThisGame] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [dadMessage, setDadMessage] = useState(null);
+  const [lossMessage, setLossMessage] = useState(null);
+  const [isPersonalBest, setIsPersonalBest] = useState(false);
 
   const startGame = () => {
-    setQuestions(buildGameQuestions());
+    const initial = buildGameQuestions();
+    setQuestions(initial);
     setCurrentQ(0);
     setSelectedAnswer(null);
     setAnswerState(null);
@@ -298,7 +588,28 @@ export default function MillionaireTrivia() {
     setLifelinesUsed({ fifty: false, parent: false });
     setCoins(0);
     setWon(false);
+    setMascotState("idle");
+    setStreak(0);
+    setBestStreakThisGame(0);
+    setCorrectCount(0);
+    setDadMessage(null);
+    setLossMessage(null);
+    setIsPersonalBest(false);
     setScreen("game");
+
+    // Feature 2: adaptive AI swap — background fetch, fail silently
+    const { gamesPlayed } = getProgress();
+    const { slots } = getAIConfig(gamesPlayed);
+    const subjects = slots.map(i => initial[i]?.subject || "Math");
+    Promise.all(subjects.map(subject => fetchAIQuestion(subject))).then(results => {
+      setQuestions(prev => {
+        const updated = [...prev];
+        slots.forEach((slot, i) => {
+          if (results[i]) updated[slot] = results[i];
+        });
+        return updated;
+      });
+    }).catch(() => {});
   };
 
   const q = questions[currentQ];
@@ -310,13 +621,29 @@ export default function MillionaireTrivia() {
   }, [currentQ, screen, isCheckpoint]);
 
   const resolveCorrect = () => {
+    const newCoins = COIN_LADDER[currentQ].coins;
+    const newStreak = streak + 1;
+    const newBest = Math.max(bestStreakThisGame, newStreak);
+    const newCorrect = correctCount + 1;
+    const progress = getProgress();
+    const isPB = newCoins > progress.highScore;
+
     playSound(isCheckpoint ? "correct_checkpoint" : "correct");
     setAnswerState("correct");
-    setCoins(COIN_LADDER[currentQ].coins);
+    setCoins(newCoins);
+    setStreak(newStreak);
+    setBestStreakThisGame(newBest);
+    setCorrectCount(newCorrect);
+    setMascotState("correct");
     setShowBurst(true);
-    setTimeout(() => setShowBurst(false), 2000);
+    setIsPersonalBest(isPB);
+    setDadMessage(DAD_MESSAGES[Math.floor(Math.random() * DAD_MESSAGES.length)]);
+
+    setTimeout(() => { setShowBurst(false); setDadMessage(null); setIsPersonalBest(false); }, 2000);
     setTimeout(() => {
+      setMascotState("idle");
       if (currentQ + 1 >= questions.length) {
+        saveGameResult({ coinsEarned: newCoins, correct: newCorrect, total: questions.length, bestStreakThisGame: newBest });
         setWon(true);
         setScreen("gameover");
       } else {
@@ -329,10 +656,14 @@ export default function MillionaireTrivia() {
   };
 
   const resolveWrong = () => {
+    const safeCoins = [...COIN_LADDER].slice(0, currentQ).reverse().find(l => l.safe)?.coins || 0;
     playSound("wrong");
     setAnswerState("wrong");
+    setMascotState("wrong");
+    setStreak(0);
+    setLossMessage(DAD_LOSS_MESSAGES[Math.floor(Math.random() * DAD_LOSS_MESSAGES.length)]);
     setTimeout(() => {
-      const safeCoins = [...COIN_LADDER].slice(0, currentQ).reverse().find(l => l.safe)?.coins || 0;
+      saveGameResult({ coinsEarned: safeCoins, correct: correctCount, total: questions.length, bestStreakThisGame });
       setCoins(safeCoins);
       setWon(false);
       setScreen("gameover");
@@ -342,6 +673,7 @@ export default function MillionaireTrivia() {
   const handleAnswer = (option) => {
     if (selectedAnswer || answerState) return;
     setSelectedAnswer(option);
+    setMascotState("thinking");
     setTimeout(() => {
       if (option === q.answer) resolveCorrect();
       else resolveWrong();
@@ -363,10 +695,20 @@ export default function MillionaireTrivia() {
   };
 
   if (screen === "gameover") {
-    return <GameOver won={won} coins={coins} onRestart={() => setScreen("intro")} />;
+    return (
+      <GameOver
+        won={won}
+        coins={coins}
+        correct={correctCount}
+        bestStreakThisGame={bestStreakThisGame}
+        lossMessage={lossMessage}
+        onRestart={() => setScreen("intro")}
+      />
+    );
   }
 
   if (screen === "intro") {
+    const progress = getProgress();
     return (
       <div style={{
         minHeight: "100vh",
@@ -383,7 +725,13 @@ export default function MillionaireTrivia() {
           @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(255,212,75,0.4)} 50%{box-shadow:0 0 0 20px rgba(255,212,75,0)} }
           @keyframes slideIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
           @keyframes glow { 0%,100%{text-shadow:0 0 20px rgba(255,212,75,0.5)} 50%{text-shadow:0 0 40px rgba(255,212,75,1)} }
+          @keyframes mascotFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
         `}</style>
+
+        <div style={{ marginBottom: "1rem" }}>
+          <GeekMascot state="idle" />
+        </div>
+
         <div style={{ fontSize: "5rem", animation: "float 3s ease-in-out infinite" }}>🪙</div>
         <h1 style={{
           fontSize: "clamp(2rem, 6vw, 3.5rem)", color: "#FFD43B",
@@ -395,9 +743,25 @@ export default function MillionaireTrivia() {
         <h2 style={{ fontSize: "clamp(1.2rem, 4vw, 2rem)", color: "white", margin: "0 0 0.5rem", letterSpacing: 2 }}>
           MILLION COIN CHALLENGE
         </h2>
-        <p style={{ color: "#9b8ec4", fontFamily: "'Nunito', sans-serif", fontSize: "1rem", maxWidth: 300, marginBottom: "2rem" }}>
+        <p style={{ color: "#9b8ec4", fontFamily: "'Nunito', sans-serif", fontSize: "1rem", maxWidth: 300, marginBottom: "1rem" }}>
           10 questions. 2 lifelines. Can you win 1,000,000 🪙?
         </p>
+
+        {/* Personal stats on intro if games played */}
+        {progress.gamesPlayed > 0 && (
+          <div style={{
+            display: "flex", gap: "0.75rem", marginBottom: "1.5rem", flexWrap: "wrap", justifyContent: "center",
+            animation: "slideIn 0.5s ease-out",
+          }}>
+            <span style={{ background: "rgba(255,212,75,0.1)", border: "1px solid #FFD43B", borderRadius: 50, padding: "0.3rem 0.9rem", color: "#FFD43B", fontFamily: "'Nunito', sans-serif", fontSize: "0.85rem" }}>
+              🏆 Best: {progress.highScore.toLocaleString()} coins
+            </span>
+            <span style={{ background: "rgba(255,107,107,0.1)", border: "1px solid #FF6B6B", borderRadius: 50, padding: "0.3rem 0.9rem", color: "#FF6B6B", fontFamily: "'Nunito', sans-serif", fontSize: "0.85rem" }}>
+              🎮 {progress.gamesPlayed} games played
+            </span>
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", flexWrap: "wrap", justifyContent: "center" }}>
           {Object.entries(SUBJECT_EMOJIS).map(([s, e]) => (
             <div key={s} style={{
@@ -453,11 +817,22 @@ export default function MillionaireTrivia() {
           75%{border-color:#74C0FC;box-shadow:0 0 30px rgba(116,192,252,0.4)}
           100%{border-color:#FFA94D;box-shadow:0 0 30px rgba(255,169,77,0.4)}
         }
+        @keyframes mascotFloat  { 0%,100%{transform:translateY(0)}  50%{transform:translateY(-8px)} }
+        @keyframes mascotJump   { 0%{transform:translateY(0) scale(1)} 100%{transform:translateY(-14px) scale(1.05)} }
+        @keyframes mascotShake  { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+        @keyframes mascotPulse  { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
+        @keyframes starPop      { 0%{opacity:0;transform:scale(0) rotate(-20deg)} 100%{opacity:1;transform:scale(1) rotate(0deg)} }
+        @keyframes thinkingTap  { 0%,100%{transform:rotate(0deg)} 50%{transform:rotate(-15deg)} }
+        @keyframes streakBounce { 0%{transform:scale(0.5)} 60%{transform:scale(1.15)} 100%{transform:scale(1)} }
+        @keyframes dadMsgSlideUp{ from{opacity:0;transform:translate(-50%,20px)} to{opacity:1;transform:translate(-50%,0)} }
+        @keyframes shimmer      { 0%{background-position:200% center} 100%{background-position:-200% center} }
       `}</style>
 
       <CoinBurst show={showBurst} />
+      <DadMessage message={dadMessage} />
       {showParentModal && <AskParentModal onResume={() => setShowParentModal(false)} />}
       {isCheckpoint && <CheckpointBanner />}
+      <PersonalBestBanner show={isPersonalBest} />
 
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", maxWidth: 600, marginBottom: "1rem" }}>
@@ -496,19 +871,26 @@ export default function MillionaireTrivia() {
         ))}
       </div>
 
-      {/* Question */}
-      <div style={{
-        background: isCheckpoint ? "rgba(255,169,77,0.08)" : "rgba(255,255,255,0.05)",
-        border: isCheckpoint ? "3px solid #FFA94D" : `2px solid ${subjectColor}`,
-        borderRadius: 20, padding: "1.5rem", width: "100%", maxWidth: 600,
-        marginBottom: "1.25rem",
-        animation: isCheckpoint
-          ? "rainbowBorder 2s linear infinite, slideIn 0.4s ease-out"
-          : "slideIn 0.4s ease-out",
-      }}>
-        <p style={{ fontSize: "clamp(1.05rem, 3vw, 1.25rem)", margin: 0, lineHeight: 1.5, textAlign: "center" }}>
-          {q.question}
-        </p>
+      {/* Question card + mascot row */}
+      <div style={{ display: "flex", alignItems: "flex-start", width: "100%", maxWidth: 600, gap: "1rem", marginBottom: "1.25rem" }}>
+        <div style={{ flex: 1 }}>
+          <div style={{
+            background: isCheckpoint ? "rgba(255,169,77,0.08)" : "rgba(255,255,255,0.05)",
+            border: isCheckpoint ? "3px solid #FFA94D" : `2px solid ${subjectColor}`,
+            borderRadius: 20, padding: "1.5rem",
+            animation: isCheckpoint
+              ? "rainbowBorder 2s linear infinite, slideIn 0.4s ease-out"
+              : "slideIn 0.4s ease-out",
+          }}>
+            <p style={{ fontSize: "clamp(1.05rem, 3vw, 1.25rem)", margin: 0, lineHeight: 1.5, textAlign: "center" }}>
+              {q.question}
+            </p>
+          </div>
+        </div>
+        {/* Mascot — hidden on very small screens via width check */}
+        <div style={{ flexShrink: 0, display: "flex", alignItems: "center", paddingTop: "0.5rem" }}>
+          <GeekMascot state={mascotState} />
+        </div>
       </div>
 
       {/* Options */}
@@ -550,6 +932,9 @@ export default function MillionaireTrivia() {
           {lifelinesUsed.parent ? "📞 Used" : "📞 Ask Parent"}
         </button>
       </div>
+
+      {/* Streak counter */}
+      <StreakCounter streak={streak} />
     </div>
   );
 }

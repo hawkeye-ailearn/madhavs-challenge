@@ -3,7 +3,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { subject } = req.body || {};
+  const { subject, difficulty } = req.body || {};
+  const difficultyLabel = difficulty === 'hard' ? 'harder' : 'fun';
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -24,8 +25,8 @@ export default async function handler(req, res) {
           {
             role: 'user',
             content: subject
-              ? `Give me one fun ${subject} trivia question for a 2nd grader.`
-              : 'Give me one fun trivia question for a 2nd grader.',
+              ? `Give me one ${difficultyLabel} ${subject} trivia question for a 2nd grader.`
+              : `Give me one ${difficultyLabel} trivia question for a 2nd grader.`,
           },
         ],
       }),
