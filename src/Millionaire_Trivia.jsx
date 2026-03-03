@@ -1,4 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import PropTypes from "prop-types";
+import { buildGameQuestions } from "./questionBank.js";
 
 const COIN_LADDER = [
   { level: 1,  coins: 100,       safe: false },
@@ -13,51 +15,6 @@ const COIN_LADDER = [
   { level: 10, coins: 1000000,   safe: false },
 ];
 
-const HARDCODED_QUESTIONS = [
-  // Math
-  { question: "How many sides does a triangle have?", options: ["2", "3", "4", "5"], answer: "3", subject: "Math" },
-  { question: "What is 5 + 7?", options: ["10", "11", "12", "13"], answer: "12", subject: "Math" },
-  { question: "What is 10 - 4?", options: ["4", "5", "6", "7"], answer: "6", subject: "Math" },
-  { question: "How many days are in a week?", options: ["5", "6", "7", "8"], answer: "7", subject: "Math" },
-  { question: "What is 3 × 4?", options: ["7", "10", "12", "14"], answer: "12", subject: "Math" },
-  { question: "How many sides does a square have?", options: ["3", "4", "5", "6"], answer: "4", subject: "Math" },
-  { question: "What is half of 20?", options: ["5", "8", "10", "15"], answer: "10", subject: "Math" },
-  { question: "What comes after 19?", options: ["18", "20", "21", "29"], answer: "20", subject: "Math" },
-  { question: "How many months are in a year?", options: ["10", "11", "12", "13"], answer: "12", subject: "Math" },
-  { question: "What is 8 + 9?", options: ["15", "16", "17", "18"], answer: "17", subject: "Math" },
-  // Science
-  { question: "Which planet do we live on?", options: ["Mars", "Venus", "Earth", "Jupiter"], answer: "Earth", subject: "Science" },
-  { question: "What do plants need to make food?", options: ["Moon", "Sunlight", "Sand", "Snow"], answer: "Sunlight", subject: "Science" },
-  { question: "What season comes after Summer?", options: ["Spring", "Winter", "Fall", "Monsoon"], answer: "Fall", subject: "Science" },
-  { question: "Where do fish live?", options: ["In trees", "Underground", "In water", "On mountains"], answer: "In water", subject: "Science" },
-  { question: "What does a caterpillar turn into?", options: ["A bee", "A butterfly", "A spider", "A worm"], answer: "A butterfly", subject: "Science" },
-  { question: "What do we call baby dogs?", options: ["Kittens", "Cubs", "Puppies", "Chicks"], answer: "Puppies", subject: "Science" },
-  { question: "Which animal has a trunk?", options: ["Lion", "Elephant", "Giraffe", "Zebra"], answer: "Elephant", subject: "Science" },
-  { question: "What is the largest planet in our solar system?", options: ["Earth", "Saturn", "Jupiter", "Mars"], answer: "Jupiter", subject: "Science" },
-  { question: "What do caterpillars eat?", options: ["Meat", "Leaves", "Fish", "Rocks"], answer: "Leaves", subject: "Science" },
-  { question: "What covers most of the Earth?", options: ["Sand", "Ice", "Water", "Grass"], answer: "Water", subject: "Science" },
-  // History
-  { question: "Who was the first President of the United States?", options: ["Abraham Lincoln", "George Washington", "Thomas Jefferson", "John Adams"], answer: "George Washington", subject: "History" },
-  { question: "What holiday do we celebrate on July 4th?", options: ["Thanksgiving", "Halloween", "Independence Day", "Christmas"], answer: "Independence Day", subject: "History" },
-  { question: "What famous structure is in Paris, France?", options: ["Big Ben", "Eiffel Tower", "Statue of Liberty", "Colosseum"], answer: "Eiffel Tower", subject: "History" },
-  { question: "On which holiday do we give thanks and eat turkey?", options: ["Easter", "Christmas", "Thanksgiving", "Halloween"], answer: "Thanksgiving", subject: "History" },
-  { question: "What country is the Taj Mahal in?", options: ["China", "Egypt", "India", "Brazil"], answer: "India", subject: "History" },
-  // Civics
-  { question: "What do police officers do?", options: ["Cook food", "Build houses", "Keep people safe", "Fly planes"], answer: "Keep people safe", subject: "Civics" },
-  { question: "Who helps us when we are sick?", options: ["A firefighter", "A teacher", "A doctor", "A chef"], answer: "A doctor", subject: "Civics" },
-  { question: "What do firefighters do?", options: ["Teach school", "Put out fires", "Fix cars", "Bake bread"], answer: "Put out fires", subject: "Civics" },
-  { question: "What do you call the leader of the United States?", options: ["King", "Prime Minister", "President", "Mayor"], answer: "President", subject: "Civics" },
-  { question: "What do we put in a recycle bin?", options: ["Food scraps", "Paper and cans", "Dirty clothes", "Broken glass"], answer: "Paper and cans", subject: "Civics" },
-  // Reading
-  { question: "Which of these is a vowel?", options: ["B", "C", "E", "T"], answer: "E", subject: "Reading" },
-  { question: "What letter comes after D in the alphabet?", options: ["C", "E", "F", "B"], answer: "E", subject: "Reading" },
-  { question: "How many letters are in the word CAT?", options: ["2", "3", "4", "5"], answer: "3", subject: "Reading" },
-  { question: "Which word rhymes with HAT?", options: ["Dog", "Car", "Bat", "Sun"], answer: "Bat", subject: "Reading" },
-  { question: "What do you call a group of words that makes a complete thought?", options: ["A letter", "A sentence", "A paragraph", "A word"], answer: "A sentence", subject: "Reading" },
-  { question: "What is the first letter of the alphabet?", options: ["B", "Z", "A", "E"], answer: "A", subject: "Reading" },
-  { question: "Which word is the opposite of HOT?", options: ["Warm", "Cold", "Bright", "Fast"], answer: "Cold", subject: "Reading" },
-  { question: "What punctuation ends a question?", options: [".", "!", "?", ","], answer: "?", subject: "Reading" },
-];
 
 const SUBJECT_COLORS = {
   Math: "#FF6B6B",
@@ -79,15 +36,11 @@ function shuffle(arr) {
   return [...arr].sort(() => Math.random() - 0.5);
 }
 
-function getQuestions() {
-  return shuffle(HARDCODED_QUESTIONS).slice(0, 10);
-}
-
 // ---- Sound Engine (Web Audio API, no files needed) ----
 
 function playSound(type) {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = new (globalThis.AudioContext || globalThis.webkitAudioContext)();
     const note = (freq, start, dur, wave = "sine", vol = 0.25) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -101,18 +54,62 @@ function playSound(type) {
       osc.stop(ctx.currentTime + start + dur + 0.01);
     };
     if (type === "checkpoint") {
-      // Dramatic ascending fanfare
-      [[329.63,0],[415.30,0.18],[493.88,0.36],[659.25,0.54]].forEach(([f,t]) => note(f,t,0.5));
+      [[329.63,0],[415.3,0.18],[493.88,0.36],[659.25,0.54]].forEach(([f,t]) => note(f,t,0.5));
     } else if (type === "correct") {
       note(523.25, 0, 0.15); note(659.25, 0.15, 0.3);
     } else if (type === "correct_checkpoint") {
-      // Big triumphant run
       [[261.63,0],[329.63,0.1],[392,0.2],[523.25,0.3],[659.25,0.4],[783.99,0.5]].forEach(([f,t]) => note(f,t,0.55));
     } else if (type === "wrong") {
       note(220, 0, 0.3, "sawtooth", 0.2); note(180, 0.25, 0.5, "sawtooth", 0.15);
     }
     setTimeout(() => ctx.close(), 3000);
-  } catch (_) {}
+  } catch {
+    // Audio playback not supported — intentionally ignored
+  }
+}
+
+// Stable coin IDs — avoids using array index as React key
+const COIN_ITEMS = Array.from({ length: 20 }, (_, i) => ({ id: i }));
+
+// Moved outside component: pure style helper, reduces cognitive complexity
+function getOptionStyle(option, { eliminatedOptions, selectedAnswer, answerState, answer }) {
+  const isEliminated = eliminatedOptions.includes(option);
+  const isSelected = selectedAnswer === option;
+  const isCorrect = answerState === "correct" && isSelected;
+  const isWrong = answerState === "wrong" && isSelected;
+  const showCorrect = answerState === "wrong" && option === answer;
+
+  let bg = "rgba(255,255,255,0.05)";
+  let border = "2px solid rgba(255,255,255,0.15)";
+  let color = "white";
+  const opacity = isEliminated ? 0.2 : 1;
+
+  if (isCorrect || showCorrect) { bg = "rgba(81,207,102,0.25)"; border = "2px solid #51CF66"; color = "#51CF66"; }
+  else if (isWrong) { bg = "rgba(255,107,107,0.25)"; border = "2px solid #FF6B6B"; color = "#FF6B6B"; }
+  else if (isSelected) { bg = "rgba(255,212,75,0.15)"; border = "2px solid #FFD43B"; }
+
+  return {
+    background: bg, border, color, opacity,
+    borderRadius: 16, padding: "1rem 1.2rem",
+    fontFamily: "'Fredoka One', cursive", fontSize: "clamp(0.95rem, 2.5vw, 1.1rem)",
+    cursor: isEliminated || answerState ? "default" : "pointer",
+    transition: "all 0.3s", width: "100%", textAlign: "left",
+    display: "flex", alignItems: "center", gap: "0.75rem",
+    pointerEvents: isEliminated || answerState ? "none" : "auto"
+  };
+}
+
+// Extracted ladder style helpers — avoids nested ternaries
+function getLadderBg(index, currentQ) {
+  if (index === currentQ) return "#FFD43B";
+  if (index < currentQ) return "rgba(81,207,102,0.3)";
+  return "rgba(255,255,255,0.05)";
+}
+
+function getLadderColor(index, currentQ) {
+  if (index === currentQ) return "#1a1a2e";
+  if (index < currentQ) return "#51CF66";
+  return "#888";
 }
 
 // ---- Components ----
@@ -139,8 +136,8 @@ function CoinBurst({ show }) {
   if (!show) return null;
   return (
     <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 999 }}>
-      {Array.from({ length: 20 }).map((_, i) => (
-        <div key={i} style={{
+      {COIN_ITEMS.map((coin) => (
+        <div key={coin.id} style={{
           position: "absolute",
           left: `${Math.random() * 100}%`,
           top: `${Math.random() * 60}%`,
@@ -152,8 +149,9 @@ function CoinBurst({ show }) {
     </div>
   );
 }
+CoinBurst.propTypes = { show: PropTypes.bool.isRequired };
 
-function AskParentModal({ onClose, onResume }) {
+function AskParentModal({ onResume }) {
   const [timer, setTimer] = useState(60);
   const [phase, setPhase] = useState("calling"); // calling -> waiting -> done
 
@@ -236,6 +234,9 @@ function AskParentModal({ onClose, onResume }) {
     </div>
   );
 }
+AskParentModal.propTypes = {
+  onResume: PropTypes.func.isRequired,
+};
 
 function GameOver({ won, coins, onRestart }) {
   return (
@@ -267,6 +268,11 @@ function GameOver({ won, coins, onRestart }) {
     </div>
   );
 }
+GameOver.propTypes = {
+  won: PropTypes.bool.isRequired,
+  coins: PropTypes.number.isRequired,
+  onRestart: PropTypes.func.isRequired,
+};
 
 // ---- Main Game ----
 
@@ -284,8 +290,7 @@ export default function MillionaireTrivia() {
   const [won, setWon] = useState(false);
 
   const startGame = () => {
-    const initial = getQuestions();
-    setQuestions(initial);
+    setQuestions(buildGameQuestions());
     setCurrentQ(0);
     setSelectedAnswer(null);
     setAnswerState(null);
@@ -294,19 +299,6 @@ export default function MillionaireTrivia() {
     setCoins(0);
     setWon(false);
     setScreen("game");
-
-    // Background-fetch 7 AI questions spread across positions 1-9 (skip Q0 so game starts instantly)
-    const aiSubjects = ["Math", "Science", "History", "Civics", "Reading", "Math", "Science"];
-    const aiSlots    = [1, 2, 3, 4, 5, 7, 8];
-    Promise.all(aiSubjects.map(subject => fetchAIQuestion(subject))).then(results => {
-      setQuestions(prev => {
-        const updated = [...prev];
-        for (let i = 0; i < results.length; i++) {
-          if (results[i]) updated[aiSlots[i]] = results[i];
-        }
-        return updated;
-      });
-    }).catch(() => {});
   };
 
   const q = questions[currentQ];
@@ -370,20 +362,6 @@ export default function MillionaireTrivia() {
     setShowParentModal(true);
   };
 
-  const fetchAIQuestion = async (subject) => {
-    try {
-      const response = await fetch("/api/ask-claude", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject }),
-      });
-      if (!response.ok) return null;
-      return await response.json();
-    } catch {
-      return null;
-    }
-  };
-
   if (screen === "gameover") {
     return <GameOver won={won} coins={coins} onRestart={() => setScreen("intro")} />;
   }
@@ -445,34 +423,8 @@ export default function MillionaireTrivia() {
   if (!q) return null;
 
   const subjectColor = SUBJECT_COLORS[q.subject] || "#FFD43B";
-
-  const getOptionStyle = (option) => {
-    const isEliminated = eliminatedOptions.includes(option);
-    const isSelected = selectedAnswer === option;
-    const isCorrect = answerState === "correct" && isSelected;
-    const isWrong = answerState === "wrong" && isSelected;
-    const showCorrect = answerState === "wrong" && option === q.answer;
-
-    let bg = "rgba(255,255,255,0.05)";
-    let border = "2px solid rgba(255,255,255,0.15)";
-    let color = "white";
-    let opacity = isEliminated ? 0.2 : 1;
-
-    if (isCorrect || showCorrect) { bg = "rgba(81,207,102,0.25)"; border = "2px solid #51CF66"; color = "#51CF66"; }
-    else if (isWrong) { bg = "rgba(255,107,107,0.25)"; border = "2px solid #FF6B6B"; color = "#FF6B6B"; }
-    else if (isSelected) { bg = "rgba(255,212,75,0.15)"; border = "2px solid #FFD43B"; }
-
-    return {
-      background: bg, border, color, opacity,
-      borderRadius: 16, padding: "1rem 1.2rem",
-      fontFamily: "'Fredoka One', cursive", fontSize: "clamp(0.95rem, 2.5vw, 1.1rem)",
-      cursor: isEliminated || answerState ? "default" : "pointer",
-      transition: "all 0.3s", width: "100%", textAlign: "left",
-      display: "flex", alignItems: "center", gap: "0.75rem",
-      pointerEvents: isEliminated || answerState ? "none" : "auto"
-    };
-  };
-
+  const subjectBgRgb = subjectColor === "#FFD43B" ? "255,212,75" : "255,255,255";
+  const optionStyleProps = { eliminatedOptions, selectedAnswer, answerState, answer: q.answer };
   const optionLabels = ["A", "B", "C", "D"];
 
   return (
@@ -504,7 +456,7 @@ export default function MillionaireTrivia() {
       `}</style>
 
       <CoinBurst show={showBurst} />
-      {showParentModal && <AskParentModal onClose={() => setShowParentModal(false)} onResume={() => setShowParentModal(false)} />}
+      {showParentModal && <AskParentModal onResume={() => setShowParentModal(false)} />}
       {isCheckpoint && <CheckpointBanner />}
 
       {/* Header */}
@@ -514,7 +466,7 @@ export default function MillionaireTrivia() {
           Question {currentQ + 1} of {questions.length}
         </div>
         <div style={{
-          background: `rgba(${subjectColor === "#FFD43B" ? "255,212,75" : "255,255,255"},0.1)`,
+          background: `rgba(${subjectBgRgb},0.1)`,
           border: `1px solid ${subjectColor}`,
           borderRadius: 20, padding: "0.25rem 0.75rem",
           color: subjectColor, fontSize: "0.85rem"
@@ -529,13 +481,13 @@ export default function MillionaireTrivia() {
         overflowX: "auto", width: "100%", maxWidth: 600, paddingBottom: "0.5rem"
       }}>
         {COIN_LADDER.map((l, i) => (
-          <div key={i} style={{
+          <div key={l.level} style={{
             flex: "1 0 auto", minWidth: 44, height: 36,
             borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: "0.7rem", fontFamily: "'Nunito', sans-serif",
-            background: i === currentQ ? "#FFD43B" : i < currentQ ? "rgba(81,207,102,0.3)" : "rgba(255,255,255,0.05)",
+            background: getLadderBg(i, currentQ),
             border: l.safe ? "2px solid #51CF66" : "1px solid rgba(255,255,255,0.1)",
-            color: i === currentQ ? "#1a1a2e" : i < currentQ ? "#51CF66" : "#888",
+            color: getLadderColor(i, currentQ),
             fontWeight: i === currentQ ? "bold" : "normal",
             transition: "all 0.3s"
           }}>
@@ -562,7 +514,7 @@ export default function MillionaireTrivia() {
       {/* Options */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", width: "100%", maxWidth: 600, marginBottom: "1.5rem" }}>
         {q.options.map((option, i) => (
-          <button key={option} onClick={() => handleAnswer(option)} style={getOptionStyle(option)}>
+          <button key={option} onClick={() => handleAnswer(option)} style={getOptionStyle(option, optionStyleProps)}>
             <span style={{
               minWidth: 28, height: 28, borderRadius: "50%",
               background: "rgba(255,255,255,0.1)", display: "flex",
