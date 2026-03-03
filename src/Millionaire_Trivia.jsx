@@ -55,7 +55,57 @@ function getQuestions() {
   return shuffle(HARDCODED_QUESTIONS).slice(0, 10);
 }
 
+// ---- Sound Engine (Web Audio API, no files needed) ----
+
+function playSound(type) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const note = (freq, start, dur, wave = "sine", vol = 0.25) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = wave;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(vol, ctx.currentTime + start);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + dur + 0.01);
+    };
+    if (type === "checkpoint") {
+      // Dramatic ascending fanfare
+      [[329.63,0],[415.30,0.18],[493.88,0.36],[659.25,0.54]].forEach(([f,t]) => note(f,t,0.5));
+    } else if (type === "correct") {
+      note(523.25, 0, 0.15); note(659.25, 0.15, 0.3);
+    } else if (type === "correct_checkpoint") {
+      // Big triumphant run
+      [[261.63,0],[329.63,0.1],[392,0.2],[523.25,0.3],[659.25,0.4],[783.99,0.5]].forEach(([f,t]) => note(f,t,0.55));
+    } else if (type === "wrong") {
+      note(220, 0, 0.3, "sawtooth", 0.2); note(180, 0.25, 0.5, "sawtooth", 0.15);
+    }
+    setTimeout(() => ctx.close(), 3000);
+  } catch (_) {}
+}
+
 // ---- Components ----
+
+function CheckpointBanner() {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: "0.6rem",
+      background: "linear-gradient(135deg, rgba(255,100,0,0.2), rgba(255,212,75,0.25))",
+      border: "2px solid #FFA94D", borderRadius: 50,
+      padding: "0.45rem 1.5rem", marginBottom: "0.75rem",
+      animation: "checkpointPulse 0.8s ease-in-out infinite",
+    }}>
+      <span style={{ fontSize: "1.3rem" }}>🔥</span>
+      <span style={{ fontFamily: "'Fredoka One', cursive", color: "#FFD43B", fontSize: "1.05rem", letterSpacing: 2 }}>
+        MILESTONE QUESTION — LOCK IT IN!
+      </span>
+      <span style={{ fontSize: "1.3rem" }}>🔥</span>
+    </div>
+  );
+}
 
 function CoinBurst({ show }) {
   if (!show) return null;
@@ -232,39 +282,49 @@ export default function MillionaireTrivia() {
   };
 
   const q = questions[currentQ];
-  const ladder = COIN_LADDER[currentQ];
+  const isCheckpoint = COIN_LADDER[currentQ]?.safe === true;
+
+  // Play fanfare when landing on a checkpoint question
+  useEffect(() => {
+    if (screen === "game" && isCheckpoint) playSound("checkpoint");
+  }, [currentQ, screen, isCheckpoint]);
+
+  const resolveCorrect = () => {
+    playSound(isCheckpoint ? "correct_checkpoint" : "correct");
+    setAnswerState("correct");
+    setCoins(COIN_LADDER[currentQ].coins);
+    setShowBurst(true);
+    setTimeout(() => setShowBurst(false), 2000);
+    setTimeout(() => {
+      if (currentQ + 1 >= questions.length) {
+        setWon(true);
+        setScreen("gameover");
+      } else {
+        setCurrentQ(c => c + 1);
+        setSelectedAnswer(null);
+        setAnswerState(null);
+        setEliminatedOptions([]);
+      }
+    }, 1800);
+  };
+
+  const resolveWrong = () => {
+    playSound("wrong");
+    setAnswerState("wrong");
+    setTimeout(() => {
+      const safeCoins = [...COIN_LADDER].slice(0, currentQ).reverse().find(l => l.safe)?.coins || 0;
+      setCoins(safeCoins);
+      setWon(false);
+      setScreen("gameover");
+    }, 2000);
+  };
 
   const handleAnswer = (option) => {
     if (selectedAnswer || answerState) return;
     setSelectedAnswer(option);
     setTimeout(() => {
-      if (option === q.answer) {
-        setAnswerState("correct");
-        const earned = COIN_LADDER[currentQ].coins;
-        setCoins(earned);
-        setShowBurst(true);
-        setTimeout(() => setShowBurst(false), 2000);
-        setTimeout(() => {
-          if (currentQ + 1 >= questions.length) {
-            setWon(true);
-            setScreen("gameover");
-          } else {
-            setCurrentQ(c => c + 1);
-            setSelectedAnswer(null);
-            setAnswerState(null);
-            setEliminatedOptions([]);
-          }
-        }, 1800);
-      } else {
-        setAnswerState("wrong");
-        setTimeout(() => {
-          // Find last safe level
-          const safeCoins = [...COIN_LADDER].slice(0, currentQ).reverse().find(l => l.safe)?.coins || 0;
-          setCoins(safeCoins);
-          setWon(false);
-          setScreen("gameover");
-        }, 2000);
-      }
+      if (option === q.answer) resolveCorrect();
+      else resolveWrong();
     }, 800);
   };
 
@@ -330,7 +390,7 @@ export default function MillionaireTrivia() {
           MILLION COIN CHALLENGE
         </h2>
         <p style={{ color: "#9b8ec4", fontFamily: "'Nunito', sans-serif", fontSize: "1rem", maxWidth: 300, marginBottom: "2rem" }}>
-          10 questions. 2 lifelines. Can you win 5,000 🪙?
+          10 questions. 2 lifelines. Can you win 1,000,000 🪙?
         </p>
         <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", flexWrap: "wrap", justifyContent: "center" }}>
           {Object.entries(SUBJECT_EMOJIS).map(([s, e]) => (
@@ -390,10 +450,13 @@ export default function MillionaireTrivia() {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "linear-gradient(135deg, #0f0c29, #302b63, #24243e)",
+      background: isCheckpoint
+        ? "linear-gradient(135deg, #0a1a10, #0f2d1a, #1a3a22)"
+        : "linear-gradient(135deg, #0f0c29, #302b63, #24243e)",
       fontFamily: "'Fredoka One', cursive", color: "white",
       display: "flex", flexDirection: "column", alignItems: "center",
-      padding: "1.5rem 1rem"
+      padding: "1.5rem 1rem",
+      transition: "background 0.6s ease"
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700&display=swap');
@@ -402,10 +465,19 @@ export default function MillionaireTrivia() {
         @keyframes ring { 0%{transform:rotate(-15deg)} 100%{transform:rotate(15deg)} }
         @keyframes slideIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
         @keyframes correctPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.02)} }
+        @keyframes checkpointPulse { 0%,100%{box-shadow:0 0 0 0 rgba(255,169,77,0.6)} 50%{box-shadow:0 0 0 18px rgba(255,169,77,0)} }
+        @keyframes rainbowBorder {
+          0%{border-color:#FFA94D;box-shadow:0 0 30px rgba(255,169,77,0.4)}
+          25%{border-color:#FFD43B;box-shadow:0 0 30px rgba(255,212,75,0.4)}
+          50%{border-color:#51CF66;box-shadow:0 0 30px rgba(81,207,102,0.4)}
+          75%{border-color:#74C0FC;box-shadow:0 0 30px rgba(116,192,252,0.4)}
+          100%{border-color:#FFA94D;box-shadow:0 0 30px rgba(255,169,77,0.4)}
+        }
       `}</style>
 
       <CoinBurst show={showBurst} />
       {showParentModal && <AskParentModal onClose={() => setShowParentModal(false)} onResume={() => setShowParentModal(false)} />}
+      {isCheckpoint && <CheckpointBanner />}
 
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", maxWidth: 600, marginBottom: "1rem" }}>
@@ -446,10 +518,13 @@ export default function MillionaireTrivia() {
 
       {/* Question */}
       <div style={{
-        background: "rgba(255,255,255,0.05)", border: `2px solid ${subjectColor}`,
+        background: isCheckpoint ? "rgba(255,169,77,0.08)" : "rgba(255,255,255,0.05)",
+        border: isCheckpoint ? "3px solid #FFA94D" : `2px solid ${subjectColor}`,
         borderRadius: 20, padding: "1.5rem", width: "100%", maxWidth: 600,
-        marginBottom: "1.25rem", animation: "slideIn 0.4s ease-out",
-        boxShadow: `0 0 30px rgba(${subjectColor === "#FFD43B" ? "255,212,75" : "255,255,255"},0.1)`
+        marginBottom: "1.25rem",
+        animation: isCheckpoint
+          ? "rainbowBorder 2s linear infinite, slideIn 0.4s ease-out"
+          : "slideIn 0.4s ease-out",
       }}>
         <p style={{ fontSize: "clamp(1.05rem, 3vw, 1.25rem)", margin: 0, lineHeight: 1.5, textAlign: "center" }}>
           {q.question}
