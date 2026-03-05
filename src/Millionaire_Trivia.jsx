@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { buildGameQuestions } from "./questionBank.js";
-import { getProgress, saveGameResult } from "./progressTracker.js";
+import { getProgress, saveGameResult, syncFromCloud, exportProgress, importProgress } from "./progressTracker.js";
 
 // ---- Constants ----
 
@@ -559,6 +559,9 @@ GameOver.defaultProps = { lossMessage: null };
 
 export default function MillionaireTrivia() {
   const [screen, setScreen] = useState("intro"); // intro | game | gameover
+  const [progress, setProgress] = useState(() => getProgress());
+  const [cloudStatus, setCloudStatus] = useState(null); // null | "syncing" | "synced" | "offline"
+  const fileInputRef = useRef(null);
   const [questions, setQuestions] = useState([]);
   const [currentQ, setCurrentQ] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
@@ -577,6 +580,25 @@ export default function MillionaireTrivia() {
   const [dadMessage, setDadMessage] = useState(null);
   const [lossMessage, setLossMessage] = useState(null);
   const [isPersonalBest, setIsPersonalBest] = useState(false);
+
+  const handleExport = () => exportProgress();
+
+  const handleImport = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const imported = importProgress(ev.target.result);
+      if (imported) {
+        setProgress(imported);
+        setCloudStatus("synced");
+        setTimeout(() => setCloudStatus(null), 3000);
+      }
+    };
+    reader.readAsText(file);
+    // Reset so the same file can be re-imported if needed
+    e.target.value = "";
+  };
 
   const startGame = () => {
     const initial = buildGameQuestions();
@@ -614,6 +636,26 @@ export default function MillionaireTrivia() {
 
   const q = questions[currentQ];
   const isCheckpoint = COIN_LADDER[currentQ]?.safe === true;
+
+  // Sync from cloud on first load, then refresh progress state from localStorage
+  useEffect(() => {
+    setCloudStatus("syncing");
+    syncFromCloud().then(merged => {
+      if (merged) {
+        setProgress(merged);
+        setCloudStatus("synced");
+        setTimeout(() => setCloudStatus(null), 3000);
+      } else {
+        setCloudStatus("offline");
+        setTimeout(() => setCloudStatus(null), 3000);
+      }
+    });
+  }, []);
+
+  // Refresh progress from localStorage whenever returning to intro screen
+  useEffect(() => {
+    if (screen === "intro") setProgress(getProgress());
+  }, [screen]);
 
   // Play fanfare when landing on a checkpoint question
   useEffect(() => {
@@ -708,7 +750,6 @@ export default function MillionaireTrivia() {
   }
 
   if (screen === "intro") {
-    const progress = getProgress();
     return (
       <div style={{
         minHeight: "100vh",
@@ -761,6 +802,33 @@ export default function MillionaireTrivia() {
             </span>
           </div>
         )}
+
+        {/* Cloud status */}
+        {cloudStatus === "syncing" && (
+          <p style={{ color: "#9b8ec4", fontFamily: "'Nunito', sans-serif", fontSize: "0.8rem", margin: "0 0 0.5rem" }}>☁️ Syncing progress…</p>
+        )}
+        {cloudStatus === "synced" && (
+          <p style={{ color: "#51CF66", fontFamily: "'Nunito', sans-serif", fontSize: "0.8rem", margin: "0 0 0.5rem" }}>☁️ Progress synced!</p>
+        )}
+
+        {/* Export / Import backup */}
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem" }}>
+          <button onClick={handleExport} style={{
+            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.2)",
+            borderRadius: 50, padding: "0.3rem 0.9rem",
+            fontFamily: "'Nunito', sans-serif", fontSize: "0.8rem", color: "#aaa", cursor: "pointer"
+          }}>
+            💾 Save Backup
+          </button>
+          <button onClick={() => fileInputRef.current?.click()} style={{
+            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.2)",
+            borderRadius: 50, padding: "0.3rem 0.9rem",
+            fontFamily: "'Nunito', sans-serif", fontSize: "0.8rem", color: "#aaa", cursor: "pointer"
+          }}>
+            📂 Load Backup
+          </button>
+          <input ref={fileInputRef} type="file" accept=".json" style={{ display: "none" }} onChange={handleImport} />
+        </div>
 
         <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", flexWrap: "wrap", justifyContent: "center" }}>
           {Object.entries(SUBJECT_EMOJIS).map(([s, e]) => (
