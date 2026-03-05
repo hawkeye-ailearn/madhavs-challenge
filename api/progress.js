@@ -1,21 +1,26 @@
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
 
 const KEY = 'madhav_progress';
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
-      const data = await kv.get(KEY);
+      const data = await redis.get(KEY);
       return res.status(200).json(data ?? null);
     } catch (err) {
-      // KV not configured or unavailable — client will fall back to localStorage
+      // Redis not configured or unavailable — client falls back to localStorage
       return res.status(503).json({ error: err.message });
     }
   }
 
   if (req.method === 'POST') {
     try {
-      await kv.set(KEY, req.body);
+      await redis.set(KEY, req.body);
       return res.status(200).json({ ok: true });
     } catch (err) {
       return res.status(503).json({ error: err.message });
